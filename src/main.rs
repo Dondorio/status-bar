@@ -1,3 +1,4 @@
+mod renderer;
 mod window;
 use crate::window::{Opts, Window};
 

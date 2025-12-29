@@ -1,4 +1,4 @@
-use std::{convert::TryInto, num::NonZeroU32};
+use std::{convert::TryInto, num::NonZeroU32, time::Instant};
 
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
@@ -59,6 +59,7 @@ struct LayerState {
     events: Vec<Event>,
     dispatched_events: bool,
     modifiers: crate::window::Modifiers,
+    last_frame: Instant,
 }
 
 impl crate::Window for SimpleLayer {
@@ -92,6 +93,7 @@ impl crate::Window for SimpleLayer {
             layer.set_anchor(a);
         }
         let margin = opts.margin;
+
         layer.set_margin(margin.top, margin.right, margin.bottom, margin.left);
         layer.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
         layer.set_size(opts.width, opts.height);
@@ -106,9 +108,9 @@ impl crate::Window for SimpleLayer {
         let mut layer_state = LayerState {
             // Seats and outputs may be hotplugged at runtime, therefore we need to setup a registry state to
             // listen for seats and outputs.
-            output_state: OutputState::new(&globals, &qh),
             registry_state: RegistryState::new(&globals),
             seat_state: SeatState::new(&globals, &qh),
+            output_state: OutputState::new(&globals, &qh),
 
             should_exit: false,
             first_configure: true,
@@ -128,6 +130,8 @@ impl crate::Window for SimpleLayer {
 
             pointer: None,
             dispatched_events: false,
+
+            last_frame: Instant::now(),
         };
 
         event_queue.roundtrip(&mut layer_state).unwrap();
@@ -432,15 +436,11 @@ impl PointerHandler for LayerState {
                 continue;
             }
             match event.kind {
-                Enter { .. } => {
-                    // println!("Pointer entered @{:?}", event.position);
-                    self.events.push(Event::PointerEntered {
-                        x: event.position.0,
-                        y: event.position.1,
-                    })
-                }
+                Enter { .. } => self.events.push(Event::PointerEntered {
+                    x: event.position.0,
+                    y: event.position.1,
+                }),
                 Leave { .. } => {
-                    // println!("Pointer left");
                     self.events.push(Event::PointerLeft);
                 }
                 Motion { .. } => {
@@ -478,9 +478,14 @@ impl LayerState {
     pub fn draw(&mut self, qh: &QueueHandle<Self>) {
         let width = self.width;
         let height = self.height;
-        let stride = self.width as i32 * 4;
+        let stride = width as i32 * 4;
 
-        let (buffer, canvas) = self
+        let now = Instant::now();
+        let frametime = now.duration_since(self.last_frame);
+        self.last_frame = Instant::now();
+        let fps = 1.0 / frametime.as_secs_f32();
+
+        let (buffer, canvas_data) = self
             .pool
             .create_buffer(
                 width as i32,
@@ -493,22 +498,15 @@ impl LayerState {
         // Draw to the window:
         {
             let shift = self.shift.unwrap_or(0);
-            canvas
-                .chunks_exact_mut(4)
-                .enumerate()
-                .for_each(|(index, chunk)| {
-                    let x = ((index + shift as usize) % width as usize) as u32;
-                    let y = (index / width as usize) as u32;
 
-                    let a = 0xFF;
-                    let r = u32::min(((width - x) * 0xFF) / width, ((height - y) * 0xFF) / height);
-                    let g = u32::min((x * 0xFF) / width, ((height - y) * 0xFF) / height);
-                    let b = u32::min(((width - x) * 0xFF) / width, (y * 0xFF) / height);
-                    let color = (a << 24) + (r << 16) + (g << 8) + b;
+            let mut canvas = crate::renderer::skia_cpu::Canvas::new(
+                width.try_into().unwrap(),
+                height.try_into().unwrap(),
+                canvas_data,
+            );
 
-                    let array: &mut [u8; 4] = chunk.try_into().unwrap();
-                    *array = color.to_le_bytes();
-                });
+            canvas.draw_test_scene(shift);
+            canvas.draw_fps(fps as u32);
 
             if let Some(shift) = &mut self.shift {
                 *shift = (*shift + 1) % width;

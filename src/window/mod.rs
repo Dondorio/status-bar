@@ -80,10 +80,10 @@ pub struct Opts {
 impl Default for Opts {
     fn default() -> Self {
         Self {
-            width: 100,
-            height: 256,
+            width: 1000,
+            height: 100,
             exclusive_zone: -1,
-            layer: Layer::Bottom,
+            layer: Layer::Overlay,
             anchor: Some(Anchor::TOP),
             namespace: None,
             margin: Margin::default(),
