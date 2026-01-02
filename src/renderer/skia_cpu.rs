@@ -1,5 +1,6 @@
 use std::{fs, mem, sync::LazyLock};
 
+use mlua::UserData;
 use skia_safe::{
     Borrows, Color, Color4f, Data, EncodedImageFormat, Font, FontMgr, Image, ImageInfo, Paint,
     PaintStyle, Path, Rect, Surface, surfaces,
@@ -53,8 +54,8 @@ impl Canvas<'_> {
         }
     }
 
-    pub fn clear(&mut self, color: impl Into<Color4f>) {
-        self.surface.canvas().clear(color);
+    pub fn clear(&mut self, colour: impl Into<Color4f>) {
+        self.surface.canvas().clear(colour);
     }
 
     // Draw
@@ -80,7 +81,7 @@ impl Canvas<'_> {
             .draw_str(str, position, font, &self.paint);
     }
 
-    pub fn draw_image(&mut self, path: &std::path::Path, position: (f32, f32), scale: (f32, f32)) {
+    pub fn draw_image(&mut self, position: (f32, f32), scale: (f32, f32), path: &str) {
         let i = fs::read(path).expect("Failed to read file");
         let data = Data::new_copy(&i);
         let image = Image::from_encoded(data).expect("Failed to decode file");
@@ -109,14 +110,14 @@ impl Canvas<'_> {
         let height = bottom - top;
         let width = right - left;
 
-        self.paint.set_color(Color::YELLOW);
+        self.set_paint_colour(Color::YELLOW);
         self.draw_rect(
             (offset - padding, offset - padding),
             (width + padding * 2.0, height + padding * 2.0),
         );
 
-        self.paint.set_color(Color::BLACK);
-        self.paint.set_stroke_width(outline_width);
+        self.set_paint_colour(Color::BLACK);
+        self.set_stroke_width(outline_width);
         self.paint.set_style(PaintStyle::Stroke);
         self.draw_rect(
             (offset - padding, offset - padding),
@@ -133,17 +134,17 @@ impl Canvas<'_> {
         self.clear(0xFF707070);
 
         // Smiley face
-        self.paint.set_color(Color::YELLOW);
+        self.set_paint_colour(Color::YELLOW);
         self.draw_circle((500.0, 50.0), 20.0);
-        self.paint.set_color(Color::BLACK);
+        self.set_paint_colour(Color::BLACK);
         self.draw_line((495.0, 45.0), (495.0, 55.0));
         self.draw_line((505.0, 45.0), (505.0, 55.0));
-        self.move_to((495.0, 60.0));
-        self.bezier_curve_to((498.0, 61.0), (502.0, 61.0), (505.0, 60.0));
+        self.path_begin_from((495.0, 60.0));
+        self.path_bezier_curve_to((498.0, 61.0), (502.0, 61.0), (505.0, 60.0));
         self.draw_path_stroke();
 
         self.paint.set_style(PaintStyle::Fill);
-        self.paint.set_color(Color::BLUE);
+        self.set_paint_colour(Color::BLUE);
         self.draw_rect((shift as f32, 50.0), (150.0, 20.0));
     }
     // ---
@@ -157,32 +158,33 @@ impl Canvas<'_> {
     }
 
     // Path
-    pub fn move_to(&mut self, point: (f32, f32)) {
-        self.begin_path();
+    pub fn path_begin_from(&mut self, point: (f32, f32)) {
+        self.path_begin();
         self.path.move_to(point);
     }
 
-    pub fn line_to(&mut self, point: (f32, f32)) {
+    pub fn path_line_to(&mut self, point: (f32, f32)) {
         self.path.line_to(point);
     }
 
-    pub fn quad_to(&mut self, cp1: (f32, f32), to: (f32, f32)) {
+    pub fn path_quad_to(&mut self, cp1: (f32, f32), to: (f32, f32)) {
         self.path.quad_to(cp1, to);
     }
 
-    pub fn bezier_curve_to(&mut self, cp1: (f32, f32), cp2: (f32, f32), to: (f32, f32)) {
+    pub fn path_bezier_curve_to(&mut self, cp1: (f32, f32), cp2: (f32, f32), to: (f32, f32)) {
         self.path.cubic_to(cp1, cp2, to);
     }
 
-    pub fn begin_path(&mut self) {
+    pub fn path_begin(&mut self) {
         let new_path = Path::new();
         self.surface.canvas().draw_path(&self.path, &self.paint);
         let _ = mem::replace(&mut self.path, new_path);
     }
 
-    pub fn close_path(&mut self) {
+    pub fn path_close(&mut self) {
         self.path.close();
     }
+
     pub fn draw_path_stroke(&mut self) {
         self.paint.set_style(PaintStyle::Stroke);
         self.surface.canvas().draw_path(&self.path, &self.paint);
@@ -193,7 +195,15 @@ impl Canvas<'_> {
         self.surface.canvas().draw_path(&self.path, &self.paint);
     }
 
-    pub fn set_line_width(&mut self, width: f32) {
+    pub fn set_paint_colour(&mut self, colour: impl Into<Color>) {
+        self.paint.set_color(colour);
+    }
+
+    pub fn set_paint_style(&mut self, style: PaintStyle) {
+        self.paint.set_style(style);
+    }
+
+    pub fn set_stroke_width(&mut self, width: f32) {
         self.paint.set_stroke_width(width);
     }
 
@@ -208,5 +218,86 @@ impl Canvas<'_> {
 
     fn canvas(&mut self) -> &skia_safe::Canvas {
         self.surface.canvas()
+    }
+}
+
+impl<'a> UserData for Canvas<'a> {
+    fn add_methods<M: mlua::UserDataMethods<Self>>(methods: &mut M) {
+        methods.add_method_mut("clear", |_, this, col: u32| {
+            this.clear(col);
+            Ok(())
+        });
+
+        methods.add_method_mut("draw_rect", |_, this, (px, py, sx, sy)| {
+            this.draw_rect((px, py), (sx, sy));
+            Ok(())
+        });
+
+        methods.add_method_mut("draw_circle", |_, this, (px, py, radius)| {
+            this.draw_circle((px, py), radius);
+            Ok(())
+        });
+
+        methods.add_method_mut("draw_line", |_, this, (fx, fy, tx, ty)| {
+            this.draw_line((fx, fy), (tx, ty));
+            Ok(())
+        });
+
+        methods.add_method_mut("draw_text", |_, this, (px, py, str): (f32, f32, String)| {
+            // TODO implement UserData for Font
+            this.draw_text((px, py), &str, &FONT_MONOSPACE);
+            Ok(())
+        });
+
+        methods.add_method_mut(
+            "draw_image",
+            |_, this, (px, py, sx, sy, path): (f32, f32, f32, f32, String)| {
+                this.draw_image((px, py), (sx, sy), &path);
+                Ok(())
+            },
+        );
+
+        methods.add_method_mut("draw_path_stroke", |_, this, ()| {
+            this.draw_path_stroke();
+            Ok(())
+        });
+
+        methods.add_method_mut("draw_path_fill", |_, this, ()| {
+            this.draw_path_fill();
+            Ok(())
+        });
+
+        methods.add_method_mut("set_paint_colour", |_, this, colour: u32| {
+            this.set_paint_colour(colour);
+            Ok(())
+        });
+
+        methods.add_method_mut("set_paint_style", |_, this, style: String| {
+            let s = match style.as_str() {
+                "fill" => PaintStyle::Fill,
+                "stroke" => PaintStyle::Stroke,
+                _ => panic!("Unknown stroke style"),
+            };
+            this.set_paint_style(s);
+            Ok(())
+        });
+
+        methods.add_method_mut("set_stroke_width", |_, this, width| {
+            this.set_stroke_width(width);
+            Ok(())
+        });
+
+        methods.add_method_mut(
+            "path_bezier_curve_to",
+            |_, this, (cp1x, cp1y, cp2x, cp2y, px, py)| {
+                this.path_bezier_curve_to((cp1x, cp1y), (cp2x, cp2y), (px, py));
+                Ok(())
+            },
+        );
+
+        methods.add_method_mut("path_begin_from", |_, this, (px, py)| {
+            this.path_begin_from((px, py));
+            Ok(())
+        });
     }
 }

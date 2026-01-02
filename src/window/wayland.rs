@@ -1,5 +1,6 @@
 use std::{convert::TryInto, num::NonZeroU32, time::Instant};
 
+use mlua::Lua;
 use smithay_client_toolkit::{
     compositor::{CompositorHandler, CompositorState},
     delegate_compositor, delegate_keyboard, delegate_layer, delegate_output, delegate_pointer,
@@ -60,10 +61,11 @@ struct LayerState {
     dispatched_events: bool,
     modifiers: crate::window::Modifiers,
     last_frame: Instant,
+    lua: Lua,
 }
 
 impl crate::Window for SimpleLayer {
-    fn new(opts: Opts) -> Self {
+    fn new(opts: Opts, lua: Lua) -> Self {
         env_logger::init();
 
         let conn = Connection::connect_to_env().unwrap();
@@ -132,6 +134,7 @@ impl crate::Window for SimpleLayer {
             dispatched_events: false,
 
             last_frame: Instant::now(),
+            lua,
         };
 
         event_queue.roundtrip(&mut layer_state).unwrap();
@@ -505,8 +508,18 @@ impl LayerState {
                 canvas_data,
             );
 
-            canvas.draw_test_scene(shift);
+            canvas.clear(0xFF707070);
             canvas.draw_fps(fps as u32);
+
+            let g = self.lua.globals();
+
+            let d: mlua::Function = g.get("draw").unwrap();
+            self.lua
+                .scope(|scope| {
+                    let canvas = scope.create_userdata(canvas)?;
+                    d.call::<()>(canvas)
+                })
+                .unwrap();
 
             if let Some(shift) = &mut self.shift {
                 *shift = (*shift + 1) % width;

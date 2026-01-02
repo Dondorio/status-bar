@@ -20,8 +20,10 @@
         ]}";
 
       buildInputs = with pkgs; [
+        libxkbcommon
         fontconfig
         freetype
+        luajit
         pkg-config
         rustup
       ];

@@ -1,3 +1,4 @@
+use mlua::Lua;
 use smithay_client_toolkit::{
     seat::{keyboard::KeyEvent, pointer::PointerEvent},
     shell::wlr_layer::{Anchor, Layer},
@@ -7,7 +8,7 @@ pub mod wayland;
 
 #[allow(dead_code, unused_variables)]
 pub trait Window {
-    fn new(opts: Opts) -> Self;
+    fn new(opts: Opts, lua: Lua) -> Self;
     fn run(&mut self);
     fn exit(&mut self);
     // TODO
