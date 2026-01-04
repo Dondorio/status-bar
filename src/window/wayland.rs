@@ -40,6 +40,17 @@ pub struct SimpleLayer {
     event_loop: calloop::EventLoop<'static, LayerState>,
 }
 
+impl From<super::Layer> for Layer {
+    fn from(val: super::Layer) -> Self {
+        match val {
+            super::Layer::Background => Layer::Background,
+            super::Layer::Bottom => Layer::Bottom,
+            super::Layer::Overlay => Layer::Overlay,
+            super::Layer::Top => Layer::Top,
+        }
+    }
+}
+
 #[allow(dead_code)]
 struct LayerState {
     should_exit: bool,
@@ -49,7 +60,6 @@ struct LayerState {
     exclusive_zone: i32,
     shm: Shm,
     pool: SlotPool,
-    shift: Option<u32>,
     layer: LayerSurface,
     pointer: Option<wl_pointer::WlPointer>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
@@ -86,7 +96,7 @@ impl crate::Window for SimpleLayer {
         let layer = layer_shell.create_layer_surface(
             &qh,
             surface,
-            opts.layer,
+            opts.layer.into(),
             opts.namespace.clone(),
             None,
         );
@@ -103,7 +113,7 @@ impl crate::Window for SimpleLayer {
         layer.commit();
 
         let pool = SlotPool::new((opts.width * opts.height * 4) as usize, &shm)
-            .expect("Failed to create pool");
+            .expect("failed to create pool");
 
         let event_loop = calloop::EventLoop::<LayerState>::try_new().unwrap();
 
@@ -121,7 +131,6 @@ impl crate::Window for SimpleLayer {
             exclusive_zone: opts.exclusive_zone,
             layer,
             events: Vec::new(),
-            shift: None,
 
             pool,
             shm,
@@ -155,7 +164,7 @@ impl crate::Window for SimpleLayer {
 
         SimpleLayer {
             state: layer_state,
-            layer: opts.layer,
+            layer: opts.layer.into(),
             anchor: opts.anchor,
             margin: opts.margin,
             event_loop,
@@ -318,7 +327,7 @@ impl SeatHandler for LayerState {
             let keyboard = self
                 .seat_state
                 .get_keyboard(qh, &seat, None)
-                .expect("Failed to create keyboard");
+                .expect("failed to create keyboard");
             self.keyboard = Some(keyboard);
         }
 
@@ -327,7 +336,7 @@ impl SeatHandler for LayerState {
             let pointer = self
                 .seat_state
                 .get_pointer(qh, &seat)
-                .expect("Failed to create pointer");
+                .expect("failed to create pointer");
             self.pointer = Some(pointer);
         }
     }
@@ -453,7 +462,6 @@ impl PointerHandler for LayerState {
                     });
                 }
                 Press { .. } => {
-                    self.shift = self.shift.xor(Some(0));
                     self.events.push(Event::PointerButtonPressed {
                         button: event.clone(),
                         modifiers: self.modifiers.clone(),
@@ -500,8 +508,6 @@ impl LayerState {
 
         // Draw to the window:
         {
-            let shift = self.shift.unwrap_or(0);
-
             let mut canvas = crate::renderer::skia_cpu::Canvas::new(
                 width.try_into().unwrap(),
                 height.try_into().unwrap(),
@@ -520,10 +526,6 @@ impl LayerState {
                     d.call::<()>(canvas)
                 })
                 .unwrap();
-
-            if let Some(shift) = &mut self.shift {
-                *shift = (*shift + 1) % width;
-            }
         }
 
         // Damage the entire window

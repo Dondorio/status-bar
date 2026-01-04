@@ -3,6 +3,23 @@
 ---@diagnostic disable: lowercase-global
 --#selene: allow(unused_variable)
 
+---@class Margin
+---@field top? number
+---@field right? number
+---@field bottom? number
+---@field left? number
+local Margin = {}
+
+---@class WindowOpts
+---@field width number
+---@field height number
+---@field layer "background"|"bottom"|"top"|"overlay"
+---@field exclusive_zone? number
+---@field anchor? number
+---@field margin? Margin
+---@field namespace? string
+local WindowOpts = {}
+
 ---@class Canvas
 local Canvas = {}
 

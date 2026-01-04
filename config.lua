@@ -1,16 +1,24 @@
 ---@module "stubs"
+---@diagnostic disable: lowercase-global
+--#selene: allow(unused_variable)
 
---stylua: ignore
-local colour = {
-	BLACK   = 0xFF000000,
-	BLUE    = 0xFF0000FF,
-	CYAN    = 0xFF00FFFF,
-	GREEN   = 0xFF00FF00,
-	MAGENTA = 0xFFFF00FF,
-	RED     = 0xFFFF0000,
-	WHITE   = 0xFFFFFFFF,
-	YELLOW  = 0xFFFFFF00,
-}
+local bit = require("bit")
+local extras = require("extras")
+local colour = extras.Colour
+local anchor = extras.Anchor
+
+function opts()
+	---@type WindowOpts
+	return {
+		width = 1000,
+		height = 100,
+		layer = "overlay",
+		-- exclusive_zone = 100,
+		-- margin = { top = 20 },
+		-- namespace = "hello world",
+		anchor = bit.bor(anchor.TOP),
+	}
+end
 
 ---@param canvas Canvas
 local smiley_face = function(canvas)

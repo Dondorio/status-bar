@@ -35,7 +35,7 @@ impl Canvas<'_> {
 
         let mut surface: Borrows<Surface> =
             surfaces::wrap_pixels(&image_info, canvas_data, stride, None)
-                .expect("Failed to create Skia surface");
+                .expect("failed to create Skia surface");
 
         let canvas = surface.canvas();
         let path = skia_safe::Path::default();
@@ -82,9 +82,9 @@ impl Canvas<'_> {
     }
 
     pub fn draw_image(&mut self, position: (f32, f32), scale: (f32, f32), path: &str) {
-        let i = fs::read(path).expect("Failed to read file");
+        let i = fs::read(path).expect("failed to read file");
         let data = Data::new_copy(&i);
-        let image = Image::from_encoded(data).expect("Failed to decode file");
+        let image = Image::from_encoded(data).expect("failed to decode file");
         let dst = Rect::from_point_and_size(position, scale);
         self.surface
             .canvas()
@@ -128,24 +128,6 @@ impl Canvas<'_> {
         self.paint.set_style(PaintStyle::Fill);
 
         self.draw_text((offset, offset + height - bottom), str, &FONT_MONOSPACE);
-    }
-
-    pub fn draw_test_scene(&mut self, shift: u32) {
-        self.clear(0xFF707070);
-
-        // Smiley face
-        self.set_paint_colour(Color::YELLOW);
-        self.draw_circle((500.0, 50.0), 20.0);
-        self.set_paint_colour(Color::BLACK);
-        self.draw_line((495.0, 45.0), (495.0, 55.0));
-        self.draw_line((505.0, 45.0), (505.0, 55.0));
-        self.path_begin_from((495.0, 60.0));
-        self.path_bezier_curve_to((498.0, 61.0), (502.0, 61.0), (505.0, 60.0));
-        self.draw_path_stroke();
-
-        self.paint.set_style(PaintStyle::Fill);
-        self.set_paint_colour(Color::BLUE);
-        self.draw_rect((shift as f32, 50.0), (150.0, 20.0));
     }
     // ---
 

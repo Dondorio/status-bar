@@ -1,7 +1,10 @@
-use mlua::Lua;
+use std::str::FromStr;
+
+use derive_more::{Display, FromStr};
+use mlua::{FromLua, Lua};
 use smithay_client_toolkit::{
     seat::{keyboard::KeyEvent, pointer::PointerEvent},
-    shell::wlr_layer::{Anchor, Layer},
+    shell::wlr_layer::Anchor,
 };
 
 pub mod wayland;
@@ -66,13 +69,23 @@ pub struct Modifiers {
     meta: bool,
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, Display, FromStr)]
+#[display(rename_all = "lowercase")]
+pub enum Layer {
+    Background,
+    Bottom,
+    Overlay,
+    Top,
+}
+
 #[derive(Debug, Clone)]
 pub struct Opts {
     pub width: u32,
     pub height: u32,
     pub exclusive_zone: i32,
-    // TODO use custom enum for layer, anchor
     pub layer: Layer,
+    // TODO use custom enum for anchor
     pub anchor: Option<Anchor>,
     pub margin: Margin,
     pub namespace: Option<String>,
@@ -81,10 +94,10 @@ pub struct Opts {
 impl Default for Opts {
     fn default() -> Self {
         Self {
-            width: 1000,
+            width: 100,
             height: 100,
             exclusive_zone: -1,
-            layer: Layer::Overlay,
+            layer: Layer::Bottom,
             anchor: Some(Anchor::TOP),
             namespace: None,
             margin: Margin::default(),
@@ -92,6 +105,31 @@ impl Default for Opts {
     }
 }
 
+impl FromLua for Opts {
+    fn from_lua(value: mlua::Value, _: &Lua) -> mlua::Result<Self> {
+        if let mlua::Value::Table(t) = value {
+            let bits = t.get::<Option<u32>>("anchor").unwrap();
+            let anchor = bits.and_then(Anchor::from_bits);
+
+            return Ok(Opts {
+                width: t.get("width").expect("a window must have a set width"),
+                height: t.get("height").expect("a window must have a set height"),
+                layer: match t.get::<String>("layer") {
+                    Ok(s) => Layer::from_str(&s).expect("unexpected layer type"),
+                    Err(_) => panic!("a window must have a set layer"),
+                },
+                anchor,
+                namespace: t.get("namespace")?,
+                margin: t.get::<Option<Margin>>("margin")?.unwrap_or_default(),
+                exclusive_zone: t.get::<Option<i32>>("exclusive_zone")?.unwrap_or(-1),
+            });
+        }
+
+        panic!("WindowOpts is not a table")
+    }
+}
+
+// TODO lua
 #[derive(Default, Debug, Clone, Copy)]
 pub struct Margin {
     pub top: i32,
@@ -114,5 +152,37 @@ impl From<(i32, i32, i32, i32)> for Margin {
 impl From<Margin> for (i32, i32, i32, i32) {
     fn from(m: Margin) -> Self {
         (m.top, m.right, m.bottom, m.left)
+    }
+}
+
+// Maybe add the ability to use css like syntax
+impl FromLua for Margin {
+    fn from_lua(value: mlua::Value, _: &Lua) -> mlua::Result<Self> {
+        if let mlua::Value::Table(t) = value {
+            return Ok(Margin {
+                top: t.get("top").unwrap_or_default(),
+                right: t.get("right").unwrap_or_default(),
+                bottom: t.get("bottom").unwrap_or_default(),
+                left: t.get("left").unwrap_or_default(),
+            });
+        }
+
+        // TODO
+        Err(mlua::Error::FromLuaConversionError {
+            from: "",
+            to: "Margin".to_string(),
+            message: Some(
+                r#"
+                    cannot convert type to Margin
+                    expected { 
+                      top? = number, 
+                      right? = number, 
+                      bottom? = number,
+                      left? = number,
+                    }
+                "#
+                .to_string(),
+            ),
+        })
     }
 }
