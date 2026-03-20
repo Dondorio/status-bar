@@ -18,6 +18,7 @@ local Margin = {}
 ---@field anchor? number
 ---@field margin? Margin
 ---@field namespace? string
+---@field widgets Widget,
 local WindowOpts = {}
 
 ---@class Canvas

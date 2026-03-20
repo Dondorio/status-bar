@@ -1,4 +1,5 @@
 mod renderer;
+mod widgets;
 mod window;
 use std::fs::read_to_string;
 

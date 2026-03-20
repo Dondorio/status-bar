@@ -7,6 +7,8 @@ use smithay_client_toolkit::{
     shell::wlr_layer::Anchor,
 };
 
+use crate::widgets::Widget;
+
 pub mod wayland;
 
 #[allow(dead_code, unused_variables)]
@@ -89,6 +91,7 @@ pub struct Opts {
     pub anchor: Option<Anchor>,
     pub margin: Margin,
     pub namespace: Option<String>,
+    // pub widgets: Vec<Widget>,
 }
 
 impl Default for Opts {
@@ -101,6 +104,7 @@ impl Default for Opts {
             anchor: Some(Anchor::TOP),
             namespace: None,
             margin: Margin::default(),
+            // widgets: Vec::new(),
         }
     }
 }
@@ -122,6 +126,7 @@ impl FromLua for Opts {
                 namespace: t.get("namespace")?,
                 margin: t.get::<Option<Margin>>("margin")?.unwrap_or_default(),
                 exclusive_zone: t.get::<Option<i32>>("exclusive_zone")?.unwrap_or(-1),
+                // widgets: Vec::new(),
             });
         }
 
@@ -169,7 +174,7 @@ impl FromLua for Margin {
 
         // TODO
         Err(mlua::Error::FromLuaConversionError {
-            from: "",
+            from: value.type_name(),
             to: "Margin".to_string(),
             message: Some(
                 r#"

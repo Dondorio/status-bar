@@ -18,12 +18,13 @@
         ]}";
 
       buildInputs = with pkgs; [
+        cargo
         fontconfig
         freetype
         libxkbcommon
         luajit
         pkg-config
-        rustup
+        # rustup
       ];
     };
   };
